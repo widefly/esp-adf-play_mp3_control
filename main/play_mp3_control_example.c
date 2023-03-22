@@ -27,7 +27,13 @@
 #include "periph_button.h"
 #include "board.h"
 
+#include "nvs_flash.h"
+#include "esp_vfs_fat.h"
+
 static const char *TAG = "PLAY_FLASH_MP3_CONTROL";
+static const char *TEST_DATA = "hello world";
+static const char *TASK_NAME = "FATFS";
+#define TASK_STACK_SIZE 2048
 
 static struct marker {
     int pos;
@@ -37,35 +43,34 @@ static struct marker {
 
 // low rate mp3 audio
 extern const uint8_t lr_mp3_start[] asm("_binary_music_16b_2c_8000hz_mp3_start");
-extern const uint8_t lr_mp3_end[]   asm("_binary_music_16b_2c_8000hz_mp3_end");
+extern const uint8_t lr_mp3_end[] asm("_binary_music_16b_2c_8000hz_mp3_end");
 
 // medium rate mp3 audio
 extern const uint8_t mr_mp3_start[] asm("_binary_music_16b_2c_22050hz_mp3_start");
-extern const uint8_t mr_mp3_end[]   asm("_binary_music_16b_2c_22050hz_mp3_end");
+extern const uint8_t mr_mp3_end[] asm("_binary_music_16b_2c_22050hz_mp3_end");
 
 // high rate mp3 audio
 extern const uint8_t hr_mp3_start[] asm("_binary_music_16b_2c_44100hz_mp3_start");
-extern const uint8_t hr_mp3_end[]   asm("_binary_music_16b_2c_44100hz_mp3_end");
+extern const uint8_t hr_mp3_end[] asm("_binary_music_16b_2c_44100hz_mp3_end");
 
-static void set_next_file_marker()
-{
+static void set_next_file_marker() {
     static int idx = 0;
 
     switch (idx) {
-        case 0:
-            file_marker.start = lr_mp3_start;
-            file_marker.end   = lr_mp3_end;
-            break;
-        case 1:
-            file_marker.start = mr_mp3_start;
-            file_marker.end   = mr_mp3_end;
-            break;
-        case 2:
-            file_marker.start = hr_mp3_start;
-            file_marker.end   = hr_mp3_end;
-            break;
-        default:
-            ESP_LOGE(TAG, "[ * ] Not supported index = %d", idx);
+    case 0:
+        file_marker.start = lr_mp3_start;
+        file_marker.end = lr_mp3_end;
+        break;
+    case 1:
+        file_marker.start = mr_mp3_start;
+        file_marker.end = mr_mp3_end;
+        break;
+    case 2:
+        file_marker.start = hr_mp3_start;
+        file_marker.end = hr_mp3_end;
+        break;
+    default:
+        ESP_LOGE(TAG, "[ * ] Not supported index = %d", idx);
     }
     if (++idx > 2) {
         idx = 0;
@@ -73,8 +78,7 @@ static void set_next_file_marker()
     file_marker.pos = 0;
 }
 
-int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx)
-{
+int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t wait_time, void *ctx) {
     int read_size = file_marker.end - file_marker.start - file_marker.pos;
     if (read_size == 0) {
         return AEL_IO_DONE;
@@ -86,13 +90,114 @@ int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t 
     return read_size;
 }
 
-void app_main(void)
-{
+void foreverLoop() {
+    while (1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void init_nvs() {
+    // init nvs
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+    ESP_LOGI(TAG, ">>> init nvs OK");
+}
+
+void init_fatfs() {
+    // init FAT FS
+    esp_vfs_fat_mount_config_t mountConfig = {};
+    mountConfig.max_files = 4,
+    mountConfig.format_if_mount_failed = true,
+    mountConfig.allocation_unit_size = CONFIG_WL_SECTOR_SIZE; // 4096
+
+    // partition name is "storage"
+    wl_handle_t wearCtx = WL_INVALID_HANDLE;
+    esp_err_t err = esp_vfs_fat_spiflash_mount("/storage", "storage", &mountConfig, &wearCtx);
+    if (err == ESP_ERR_NOT_FOUND)
+        ESP_LOGE(TAG, "failed to mount FATFS");
+    if (err != ESP_OK)
+        ESP_LOGE(TAG, "failed to mount FATFS");
+    ESP_ERROR_CHECK(err);
+    ESP_LOGI(TAG, ">>> init FAT FS OK");
+}
+
+/**
+ * @brief Test FATFS by writing and read a test file.
+ * Data read from the test file should be matched with the data written to the test file.
+ * If data is NOT matched, blocks the function call by looping delay 1000ms
+ */
+void testWriteAndReadFile() {
+    static uint16_t nTest = 0;
+    const char *testFile = "/storage/test.txt";
+    uint8_t isTestPass = 0;
+    FILE *fp = NULL;
+    fp = fopen(testFile, "wb");
+    if (!fp) {
+        ESP_LOGE(TAG, "failed to create file %s", testFile);
+    } else {
+        // write test data
+        fwrite(TEST_DATA, 1, strlen(TEST_DATA), fp);
+        fclose(fp);
+
+        // read test data and compare
+        fp = fopen(testFile, "r");
+        if (!fp) {
+            ESP_LOGE(TAG, "failed to open file %s", testFile);
+        } else {
+            char buffer[strlen(TEST_DATA) + 1];
+            uint16_t nRead = fread(buffer, 1, strlen(TEST_DATA), fp);
+            fclose(fp);
+            // ESP_LOGI(TAG, ">>> data.len=%d, nRead=%d", strlen(data), nRead);
+            if (nRead == strlen(TEST_DATA) && !strncmp(TEST_DATA, (const char *)buffer, strlen(TEST_DATA)))
+                isTestPass = 1;
+        }
+    }
+    if (isTestPass) {
+        nTest += 1;
+        ESP_LOGI(TAG, ">>> [%3d] Test file OK", nTest);
+    } else {
+        ESP_LOGE(TAG, ">>> Test file failed");
+        foreverLoop();
+    }
+}
+
+void worker(void *ctx) {
+    const uint16_t delayMs = 2000;
+    while (1) {
+        testWriteAndReadFile();
+        vTaskDelay(delayMs / portTICK_PERIOD_MS);
+    }
+}
+
+/**
+ * @brief A task that perform FAT check regularly.
+ * The purpose is to check if file read/write can be performed when there are I2S communication
+ */
+void createTaskCheckFATFS() {
+    TaskHandle_t taskCtx;
+    const uint8_t cpuId = 0;
+    if (xTaskCreatePinnedToCore(worker, TASK_NAME, TASK_STACK_SIZE, NULL, 20, &taskCtx, cpuId) != pdPASS) {
+        ESP_LOGE(TAG, ">>> failed creating task");
+        foreverLoop();
+    }
+}
+
+void app_main(void) {
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t i2s_stream_writer, mp3_decoder;
 
+    init_nvs();
+    init_fatfs();
+    createTaskCheckFATFS();
+
     esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set(TAG, ESP_LOG_INFO);
+
+    ESP_LOGI(TAG, "[ 0 ] program started");
 
     ESP_LOGI(TAG, "[ 1 ] Start audio codec chip");
     audio_board_handle_t board_handle = audio_board_init();
@@ -108,6 +213,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[2.1] Create mp3 decoder to decode mp3 file and set custom read callback");
     mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
+    mp3_cfg.task_core = 1; 
     mp3_decoder = mp3_decoder_init(&mp3_cfg);
     audio_element_set_read_cb(mp3_decoder, mp3_music_read_cb, NULL);
 
@@ -156,8 +262,7 @@ void app_main(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) mp3_decoder
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO) {
+        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *)mp3_decoder && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO) {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(mp3_decoder, &music_info);
             ESP_LOGI(TAG, "[ * ] Receive music info from mp3 decoder, sample_rates=%d, bits=%d, ch=%d",
@@ -167,40 +272,39 @@ void app_main(void)
             continue;
         }
 
-        if ((msg.source_type == PERIPH_ID_TOUCH || msg.source_type == PERIPH_ID_BUTTON || msg.source_type == PERIPH_ID_ADC_BTN)
-            && (msg.cmd == PERIPH_TOUCH_TAP || msg.cmd == PERIPH_BUTTON_PRESSED || msg.cmd == PERIPH_ADC_BUTTON_PRESSED)) {
-            if ((int) msg.data == get_input_play_id()) {
+        if ((msg.source_type == PERIPH_ID_TOUCH || msg.source_type == PERIPH_ID_BUTTON || msg.source_type == PERIPH_ID_ADC_BTN) && (msg.cmd == PERIPH_TOUCH_TAP || msg.cmd == PERIPH_BUTTON_PRESSED || msg.cmd == PERIPH_ADC_BUTTON_PRESSED)) {
+            if ((int)msg.data == get_input_play_id()) {
                 ESP_LOGI(TAG, "[ * ] [Play] touch tap event");
                 audio_element_state_t el_state = audio_element_get_state(i2s_stream_writer);
                 switch (el_state) {
-                    case AEL_STATE_INIT :
-                        ESP_LOGI(TAG, "[ * ] Starting audio pipeline");
-                        audio_pipeline_run(pipeline);
-                        break;
-                    case AEL_STATE_RUNNING :
-                        ESP_LOGI(TAG, "[ * ] Pausing audio pipeline");
-                        audio_pipeline_pause(pipeline);
-                        break;
-                    case AEL_STATE_PAUSED :
-                        ESP_LOGI(TAG, "[ * ] Resuming audio pipeline");
-                        audio_pipeline_resume(pipeline);
-                        break;
-                    case AEL_STATE_FINISHED :
-                        ESP_LOGI(TAG, "[ * ] Rewinding audio pipeline");
-                        audio_pipeline_reset_ringbuffer(pipeline);
-                        audio_pipeline_reset_elements(pipeline);
-                        audio_pipeline_change_state(pipeline, AEL_STATE_INIT);
-                        set_next_file_marker();
-                        audio_pipeline_run(pipeline);
-                        break;
-                    default :
-                        ESP_LOGI(TAG, "[ * ] Not supported state %d", el_state);
+                case AEL_STATE_INIT:
+                    ESP_LOGI(TAG, "[ * ] Starting audio pipeline");
+                    audio_pipeline_run(pipeline);
+                    break;
+                case AEL_STATE_RUNNING:
+                    ESP_LOGI(TAG, "[ * ] Pausing audio pipeline");
+                    audio_pipeline_pause(pipeline);
+                    break;
+                case AEL_STATE_PAUSED:
+                    ESP_LOGI(TAG, "[ * ] Resuming audio pipeline");
+                    audio_pipeline_resume(pipeline);
+                    break;
+                case AEL_STATE_FINISHED:
+                    ESP_LOGI(TAG, "[ * ] Rewinding audio pipeline");
+                    audio_pipeline_reset_ringbuffer(pipeline);
+                    audio_pipeline_reset_elements(pipeline);
+                    audio_pipeline_change_state(pipeline, AEL_STATE_INIT);
+                    set_next_file_marker();
+                    audio_pipeline_run(pipeline);
+                    break;
+                default:
+                    ESP_LOGI(TAG, "[ * ] Not supported state %d", el_state);
                 }
-            } else if ((int) msg.data == get_input_set_id()) {
+            } else if ((int)msg.data == get_input_set_id()) {
                 ESP_LOGI(TAG, "[ * ] [Set] touch tap event");
                 ESP_LOGI(TAG, "[ * ] Stopping audio pipeline");
                 break;
-            } else if ((int) msg.data == get_input_mode_id()) {
+            } else if ((int)msg.data == get_input_mode_id()) {
                 ESP_LOGI(TAG, "[ * ] [mode] tap event");
                 audio_pipeline_stop(pipeline);
                 audio_pipeline_wait_for_stop(pipeline);
@@ -209,7 +313,7 @@ void app_main(void)
                 audio_pipeline_reset_elements(pipeline);
                 set_next_file_marker();
                 audio_pipeline_run(pipeline);
-            } else if ((int) msg.data == get_input_volup_id()) {
+            } else if ((int)msg.data == get_input_volup_id()) {
                 ESP_LOGI(TAG, "[ * ] [Vol+] touch tap event");
                 player_volume += 10;
                 if (player_volume > 100) {
@@ -217,7 +321,7 @@ void app_main(void)
                 }
                 audio_hal_set_volume(board_handle->audio_hal, player_volume);
                 ESP_LOGI(TAG, "[ * ] Volume set to %d %%", player_volume);
-            } else if ((int) msg.data == get_input_voldown_id()) {
+            } else if ((int)msg.data == get_input_voldown_id()) {
                 ESP_LOGI(TAG, "[ * ] [Vol-] touch tap event");
                 player_volume -= 10;
                 if (player_volume < 0) {
