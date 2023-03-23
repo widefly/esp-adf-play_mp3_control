@@ -1,0 +1,119 @@
+rst:0x1 (POWERON_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6668
+ho 0 tail 12 room 4
+load:0x40078000,len:14944
+load:0x40080400,len:3816
+entry 0x40080698
+I (29) boot: ESP-IDF v4.4.4-dirty 2nd stage bootloader
+I (29) boot: compile time 15:44:26
+I (29) boot: chip revision: v3.0
+I (33) boot.esp32: SPI Speed      : 40MHz
+I (37) boot.esp32: SPI Mode       : DIO
+I (42) boot.esp32: SPI Flash Size : 8MB
+I (46) boot: Enabling RNG early entropy source...
+I (52) boot: Partition Table:
+I (55) boot: ## Label            Usage          Type ST Offset   Length
+I (63) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (70) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (78) boot:  2 factory          factory app      00 00 00010000 00100000
+I (85) boot:  3 storage          Unknown data     01 81 00110000 00100000
+I (93) boot: End of partition table
+I (97) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=8a72ch (567084) map
+I (310) esp_image: segment 1: paddr=0009a754 vaddr=3ffb0000 size=02414h (  9236) load
+I (314) esp_image: segment 2: paddr=0009cb70 vaddr=40080000 size=034a8h ( 13480) load
+I (322) esp_image: segment 3: paddr=000a0020 vaddr=400d0020 size=33624h (210468) map
+I (401) esp_image: segment 4: paddr=000d364c vaddr=400834a8 size=0cae0h ( 51936) load
+I (430) boot: Loaded app from partition at offset 0x10000
+I (430) boot: Disabling RNG early entropy source...
+I (442) psram: This chip is ESP32-D0WD
+I (442) spiram: Found 64MBit SPI RAM device
+I (443) spiram: SPI RAM mode: flash 40m sram 40m
+I (447) spiram: PSRAM initialized, cache is in low/high (2-core) mode.
+I (455) cpu_start: Pro cpu up.
+I (458) cpu_start: Starting app cpu, entry point is 0x40081430
+I (0) cpu_start: App cpu up.
+I (1352) spiram: SPI SRAM memory test OK
+I (1360) cpu_start: Pro cpu start user code
+I (1360) cpu_start: cpu freq: 160000000
+I (1360) cpu_start: Application information:
+I (1363) cpu_start: Project name:     play_mp3_control
+I (1369) cpu_start: App version:      916c4bd-dirty
+I (1375) cpu_start: Compile time:     Mar 23 2023 15:44:40
+I (1381) cpu_start: ELF file SHA256:  9fdf0ba3f393bbae...
+I (1387) cpu_start: ESP-IDF:          v4.4.4-dirty
+I (1393) heap_init: Initializing. RAM available for dynamic allocation:
+I (1400) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM
+I (1406) heap_init: At 3FFB2F70 len 0002D090 (180 KiB): DRAM
+I (1412) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM
+I (1418) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM
+I (1425) heap_init: At 4008FF88 len 00010078 (64 KiB): IRAM
+I (1431) spiram: Adding pool of 4095K of external SPI memory to heap allocator
+I (1440) spi_flash: detected chip: gd
+I (1444) spi_flash: flash io: dio
+I (1449) cpu_start: Starting scheduler on PRO CPU.
+I (0) cpu_start: Starting scheduler on APP CPU.
+I (1458) spiram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (1468) PLAY_FLASH_MP3_CONTROL: =================================================
+I (1478) PLAY_FLASH_MP3_CONTROL: >>> main task priority=1
+I (1478) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_ESP32_REV_MIN                               3
+I (1488) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_ESP32_SPIRAM_SUPPORT                        1
+I (1498) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM                                      1
+I (1508) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_BOOT_INIT                            1
+I (1518) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_USE_MALLOC                           1
+I (1528) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL                50
+I (1538) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL              32768
+I (1548) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY        (not defined)
+I (1558) PLAY_FLASH_MP3_CONTROL: >>> CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY          (not defined)
+I (1568) PLAY_FLASH_MP3_CONTROL: =================================================
+I (1618) PLAY_FLASH_MP3_CONTROL: >>> init nvs OK
+I (1618) PLAY_FLASH_MP3_CONTROL: Erasing partition=storage....
+I (2248) PLAY_FLASH_MP3_CONTROL: Erase partition OK, partition=storage
+W (2358) vfs_fat_spiflash: f_mount failed (13)
+I (2358) vfs_fat_spiflash: Formatting FATFS partition, allocation unit size=4096
+I (2778) vfs_fat_spiflash: Mounting again
+I (2778) PLAY_FLASH_MP3_CONTROL: >>> mounted FAT FS
+I (2778) PLAY_FLASH_MP3_CONTROL: >>> worker waiting to start..., priority=4
+I (2788) PLAY_FLASH_MP3_CONTROL: [ 0 ] program started
+I (2788) PLAY_FLASH_MP3_CONTROL: [ 1 ] Start audio codec chip
+I (2828) PLAY_FLASH_MP3_CONTROL: [ 2 ] Create audio pipeline, add all elements to pipeline, and subscribe pipeline event
+I (2828) PLAY_FLASH_MP3_CONTROL: [2.1] Create mp3 decoder to decode mp3 file and set custom read callback
+I (2838) PLAY_FLASH_MP3_CONTROL: [2.2] Create i2s stream to write data to codec chip
+I (2848) PLAY_FLASH_MP3_CONTROL: [2.3] Register all elements to audio pipeline
+I (2848) PLAY_FLASH_MP3_CONTROL: [2.4] Link it together [mp3_music_read_cb]-->mp3_decoder-->i2s_stream-->[codec_chip]
+I (2868) PLAY_FLASH_MP3_CONTROL: [ 3 ] Initialize peripherals
+E (2868) gpio: gpio_install_isr_service(449): GPIO isr service already installed
+I (2878) PLAY_FLASH_MP3_CONTROL: [3.1] Initialize keys on board
+I (2888) PLAY_FLASH_MP3_CONTROL: [ 4 ] Set up  event listener
+I (2888) PLAY_FLASH_MP3_CONTROL: [4.1] Listening event from all elements of pipeline
+W (2908) PERIPH_TOUCH: _touch_init
+I (2908) PLAY_FLASH_MP3_CONTROL: [4.2] Listening event from peripherals
+W (2918) PLAY_FLASH_MP3_CONTROL: [ 5 ] Tap touch buttons to control music player:
+W (2928) PLAY_FLASH_MP3_CONTROL:       [Play] to start, pause and resume, [Set] to stop.
+W (2948) PLAY_FLASH_MP3_CONTROL:       [Vol-] or [Vol+] to adjust volume.
+I (2948) PLAY_FLASH_MP3_CONTROL: [ 5.1 ] Start audio_pipeline
+I (3008) PLAY_FLASH_MP3_CONTROL: [ * ] Receive music info from mp3 decoder, sample_rates=8000, bits=16, ch=2
+I (7788) PLAY_FLASH_MP3_CONTROL: >>> worker started
+I (7788) PLAY_FLASH_MP3_CONTROL: before open for write /storage/test.txt
+Guru Meditation Error: Core  0 panic'ed (Cache disabled but cached memory region accessed).
+
+Core  0 register dump:
+PC      : 0x400865a9  PS      : 0x00050034  A0      : 0x40084214  A1      : 0x3ffb0be0
+A2      : 0x3f807adc  A3      : 0xbad00bad  A4      : 0x00000000  A5      : 0x400889ce
+A6      : 0xe0000020  A7      : 0x00000000  A8      : 0x00000000  A9      : 0x00000000
+A10     : 0x3ffb2e70  A11     : 0x00000001  A12     : 0x80084bbd  A13     : 0x3ffbecb0
+A14     : 0x00000001  A15     : 0x3ffb2bc8  SAR     : 0x00000018  EXCCAUSE: 0x00000007
+EXCVADDR: 0x00000000  LBEG    : 0x4000c2e0  LEND    : 0x4000c2f6  LCOUNT  : 0x00000002
+
+
+Backtrace: 0x400865a6:0x3ffb0be0 0x40084211:0x3ffb0c10 0x4000c2e1:0x3ffbeca0 0x4008cf1a:0x3ffbecb0 0x4008fd21:0x3ffbece0 0x400857bf:0x3ffbed60 0x400db826:0x3ffbeda0 0x400 e31a2:0x3ffbedd0 0x400e4391:0x3ffbedf0 0x400e30ba:0x3ffbee30 0x400ddf1d:0x3ffbee50 0x400dde45:0x3ffbee70 0x400de309:0x3ffbee90 0x400ded30:0x3ffbeeb0 0x400dedc9:0x3ffbeed0  0x400df103:0x3ffbef00 0x400e0c4b:0x3ffbef60 0x400d3559:0x3ffbef90 0x400f44ab:0x3ffbefb0 0x400f4550:0x3ffbefe0 0x400d700f:0x3ffbf000 0x400d718b:0x3ffbf030 0x4008c12d:0x3f fbf050
+
+
+
+
+ELF file SHA256: 9fdf0ba3f393bbae
+
+Rebooting...
+

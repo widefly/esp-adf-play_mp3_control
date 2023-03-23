@@ -9,6 +9,12 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+/**
+ * [ build that will not crash ]
+ *
+ *
+ */
+
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -29,11 +35,21 @@
 
 #include "nvs_flash.h"
 #include "esp_vfs_fat.h"
+#include "esp_flash_partitions.h"
 
 static const char *TAG = "PLAY_FLASH_MP3_CONTROL";
+
+#define WFM1_STRINGIFY(x) WFM1_STRINGIFY2(x)
+#define WFM1_STRINGIFY2(x) #x
+
+static const char *FATFS_PARTITION = "storage";
+static const char *FATFS_MOUNT_DIR = "/storage";
+static const char *TEST_FILE = "/storage/test.txt";
 static const char *TEST_DATA = "hello world";
 static const char *TASK_NAME = "FATFS";
 #define TASK_STACK_SIZE 2048
+#define TASK_PRIORITY 4
+#define MP3_DECODER_CORE 0
 
 static struct marker {
     int pos;
@@ -90,12 +106,44 @@ int mp3_music_read_cb(audio_element_handle_t el, char *buf, int len, TickType_t 
     return read_size;
 }
 
+/**
+ * @brief Print macros from menuconfig
+ */
+void printMacro(const char *s1, const char *s2) {
+    bool isSame = (s2 && !strcmp(s1, s2));
+    ESP_LOGI(TAG, ">>> %-50s %s", s1, isSame ? "(not defined)" : s2);
+}
+
+/**
+ * @brief Print app configs
+ */
+void printConfig(void) {
+    ESP_LOGI(TAG, "=================================================");
+    ESP_LOGI(TAG, ">>> main task priority=%d", uxTaskPriorityGet(NULL));
+    printMacro("CONFIG_ESP32_REV_MIN", WFM1_STRINGIFY(CONFIG_ESP32_REV_MIN));
+    printMacro("CONFIG_ESP32_SPIRAM_SUPPORT", WFM1_STRINGIFY(CONFIG_ESP32_SPIRAM_SUPPORT));
+    printMacro("CONFIG_SPIRAM", WFM1_STRINGIFY(CONFIG_SPIRAM));
+    printMacro("CONFIG_SPIRAM_BOOT_INIT", WFM1_STRINGIFY(CONFIG_SPIRAM_BOOT_INIT));
+    printMacro("CONFIG_SPIRAM_USE_MALLOC", WFM1_STRINGIFY(CONFIG_SPIRAM_USE_MALLOC));
+    printMacro("CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL", WFM1_STRINGIFY(CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL));
+    printMacro("CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL", WFM1_STRINGIFY(CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL));
+    printMacro("CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY", WFM1_STRINGIFY(CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY));
+    printMacro("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", WFM1_STRINGIFY(CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY));
+    ESP_LOGI(TAG, "=================================================");
+}
+
+/**
+ * @brief forever loop, delay 1000ms for each iteration
+ */
 void foreverLoop() {
     while (1) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
+/**
+ * @brief init NVS
+ */
 void init_nvs() {
     // init nvs
     esp_err_t err = nvs_flash_init();
@@ -107,7 +155,64 @@ void init_nvs() {
     ESP_LOGI(TAG, ">>> init nvs OK");
 }
 
-void init_fatfs() {
+/**
+ * @brief Check if FAT FS is corrupted?
+ * - The checking is performed by first writing a test file and the read the file to compare the content.
+ * - Data read from the test file should be matched with the data written to the test file.
+ * - If there is any error writing and reading, or data is NOT matched, FAT FS is most likely corrupted
+ * @return 1=OK, 0=FAT FS may be corrupted
+ */
+uint8_t isFATFSCorrupted() {
+    static uint16_t nTest = 0;
+    uint8_t isTestPass = 0;
+    FILE *fp = NULL;
+
+    // break on any failed conditions
+    do {
+        // write test data
+        ESP_LOGI(TAG, "before open for write %s", TEST_FILE);
+        if (!(fp = fopen(TEST_FILE, "wb"))) {
+            ESP_LOGE(TAG, "failed to create file %s", TEST_FILE);
+            break;
+        }
+        ESP_LOGI(TAG, "before write %s", TEST_FILE);
+        fwrite(TEST_DATA, 1, strlen(TEST_DATA), fp);
+        fclose(fp);
+
+        // read test data
+        ESP_LOGI(TAG, "before open for read %s", TEST_FILE);
+        if (!(fp = fopen(TEST_FILE, "r"))) {
+            ESP_LOGE(TAG, "failed to open file %s", TEST_FILE);
+            break;
+        }
+        char buffer[strlen(TEST_DATA) + 1];
+        ESP_LOGI(TAG, "before read %s", TEST_FILE);
+        uint16_t nRead = fread(buffer, 1, strlen(TEST_DATA), fp);
+        fclose(fp);
+
+        // compare data
+        ESP_LOGI(TAG, "before compare");
+        if (nRead == strlen(TEST_DATA) && !strncmp(TEST_DATA, (const char *)buffer, strlen(TEST_DATA))) {
+            isTestPass = 1;
+            nTest += 1;
+        }
+        break;
+    } while (0); // loop only once
+
+    if (isTestPass) {
+        ESP_LOGI(TAG, ">>> [%3d] FAT FS check passed", nTest);
+    } else {
+        ESP_LOGE(TAG, ">>> FAT FS test failed");
+    }
+    ESP_LOGI(TAG, "before return ");
+    return isTestPass;
+}
+
+/**
+ * @brief Mount FAT FS
+ * @return wl_handle_t
+ */
+wl_handle_t mountFATFS() {
     // init FAT FS
     esp_vfs_fat_mount_config_t mountConfig = {};
     mountConfig.max_files = 4,
@@ -116,59 +221,73 @@ void init_fatfs() {
 
     // partition name is "storage"
     wl_handle_t wearCtx = WL_INVALID_HANDLE;
-    esp_err_t err = esp_vfs_fat_spiflash_mount("/storage", "storage", &mountConfig, &wearCtx);
-    if (err == ESP_ERR_NOT_FOUND)
-        ESP_LOGE(TAG, "failed to mount FATFS");
+    esp_err_t err = esp_vfs_fat_spiflash_mount(FATFS_MOUNT_DIR, FATFS_PARTITION, &mountConfig, &wearCtx);
     if (err != ESP_OK)
         ESP_LOGE(TAG, "failed to mount FATFS");
     ESP_ERROR_CHECK(err);
-    ESP_LOGI(TAG, ">>> init FAT FS OK");
+    ESP_LOGI(TAG, ">>> mounted FAT FS");
+    return wearCtx;
 }
 
 /**
- * @brief Test FATFS by writing and read a test file.
- * Data read from the test file should be matched with the data written to the test file.
- * If data is NOT matched, blocks the function call by looping delay 1000ms
+ * @brief Unmount FAT FS
  */
-void testWriteAndReadFile() {
-    static uint16_t nTest = 0;
-    const char *testFile = "/storage/test.txt";
-    uint8_t isTestPass = 0;
-    FILE *fp = NULL;
-    fp = fopen(testFile, "wb");
-    if (!fp) {
-        ESP_LOGE(TAG, "failed to create file %s", testFile);
-    } else {
-        // write test data
-        fwrite(TEST_DATA, 1, strlen(TEST_DATA), fp);
-        fclose(fp);
-
-        // read test data and compare
-        fp = fopen(testFile, "r");
-        if (!fp) {
-            ESP_LOGE(TAG, "failed to open file %s", testFile);
-        } else {
-            char buffer[strlen(TEST_DATA) + 1];
-            uint16_t nRead = fread(buffer, 1, strlen(TEST_DATA), fp);
-            fclose(fp);
-            // ESP_LOGI(TAG, ">>> data.len=%d, nRead=%d", strlen(data), nRead);
-            if (nRead == strlen(TEST_DATA) && !strncmp(TEST_DATA, (const char *)buffer, strlen(TEST_DATA)))
-                isTestPass = 1;
-        }
-    }
-    if (isTestPass) {
-        nTest += 1;
-        ESP_LOGI(TAG, ">>> [%3d] Test file OK", nTest);
-    } else {
-        ESP_LOGE(TAG, ">>> Test file failed");
-        foreverLoop();
-    }
+void unmountFATFS(wl_handle_t wearCtx) {
+    esp_err_t err = esp_vfs_fat_spiflash_unmount(FATFS_MOUNT_DIR, wearCtx);
+    if (err == ESP_ERR_INVALID_STATE)
+        ESP_LOGE(TAG, "failed to unmount FATFS (ESP_ERR_INVALID_STATE), partition=%s", FATFS_PARTITION);
+    if (err != ESP_OK)
+        ESP_LOGE(TAG, "failed to unmount FATFS, err=%s", esp_err_to_name(err));
+    ESP_ERROR_CHECK(err);
+    ESP_LOGI(TAG, ">>> un-mounted FAT FS");
 }
 
+void eraseFATPartition() {
+    // find the storage partition
+    esp_partition_iterator_t it;
+    if (!(it = esp_partition_find(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, FATFS_PARTITION))) {
+        ESP_LOGE(TAG, ">>> partition not found, partition=%s", FATFS_PARTITION);
+        ESP_ERROR_CHECK(-1);
+    }
+    const esp_partition_t *FATPart = esp_partition_get(it);
+    esp_partition_iterator_release(it);
+
+    // erase the partition
+    esp_err_t err;
+    ESP_LOGI(TAG, "Erasing partition=%s....", FATFS_PARTITION);
+    if ((err = esp_partition_erase_range(FATPart, 0, FATPart->size))) {
+        ESP_LOGE(TAG, "esp_partition_erase_range() failed, err=%s", esp_err_to_name(err));
+        ESP_ERROR_CHECK(-1);
+    }
+    ESP_LOGI(TAG, "Erase partition OK, partition=%s", FATFS_PARTITION);
+}
+
+/**
+ * @brief Init and mount FAT FS.
+ * Before test, partition is erased.  This makes sure partition is clean and formatted before mount.
+ */
+void init_fatfs() {
+    // erase partition
+    eraseFATPartition();
+
+    // mount the FAT FS
+    wl_handle_t wearCtx = mountFATFS();
+}
+
+/**
+ * @brief Task worker function to check FAT FS periodically
+ */
 void worker(void *ctx) {
+    // wait for 5 sec before running FAT FS check
+    ESP_LOGI(TAG, ">>> worker waiting to start..., priority=%d", uxTaskPriorityGet(NULL));
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
     const uint16_t delayMs = 2000;
+    ESP_LOGI(TAG, ">>> worker started");
     while (1) {
-        testWriteAndReadFile();
+        if (!isFATFSCorrupted()) {
+            ESP_LOGE(TAG, ">>> stopped checking FAT FS");
+            foreverLoop();
+        }
         vTaskDelay(delayMs / portTICK_PERIOD_MS);
     }
 }
@@ -180,7 +299,7 @@ void worker(void *ctx) {
 void createTaskCheckFATFS() {
     TaskHandle_t taskCtx;
     const uint8_t cpuId = 0;
-    if (xTaskCreatePinnedToCore(worker, TASK_NAME, TASK_STACK_SIZE, NULL, 20, &taskCtx, cpuId) != pdPASS) {
+    if (xTaskCreatePinnedToCore(worker, TASK_NAME, TASK_STACK_SIZE, NULL, TASK_PRIORITY, &taskCtx, cpuId) != pdPASS) {
         ESP_LOGE(TAG, ">>> failed creating task");
         foreverLoop();
     }
@@ -190,6 +309,7 @@ void app_main(void) {
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t i2s_stream_writer, mp3_decoder;
 
+    printConfig();
     init_nvs();
     init_fatfs();
     createTaskCheckFATFS();
@@ -213,7 +333,7 @@ void app_main(void) {
 
     ESP_LOGI(TAG, "[2.1] Create mp3 decoder to decode mp3 file and set custom read callback");
     mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
-    mp3_cfg.task_core = 1; 
+    mp3_cfg.task_core = MP3_DECODER_CORE;
     mp3_decoder = mp3_decoder_init(&mp3_cfg);
     audio_element_set_read_cb(mp3_decoder, mp3_music_read_cb, NULL);
 

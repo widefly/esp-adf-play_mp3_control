@@ -1,0 +1,28 @@
+0x400865a6: i2s_ll_get_intr_status at /home/widefly/esp/esp-idf-v4.4.4/components/hal/esp32/include/hal/i2s_ll.h:398
+ (inlined by) i2s_intr_handler_default at /home/widefly/esp/esp-idf-v4.4.4/components/driver/i2s.c:435
+0x40084211: _xt_medint2 at /home/widefly/esp/esp-idf-v4.4.4/components/freertos/port/xtensa/xtensa_vectors.S:1203
+0x4000c2e1: ?? ??:0
+0x4008cf1a: spi_flash_ll_get_buffer_data at /home/widefly/esp/esp-idf-v4.4.4/components/hal/esp32/include/hal/spi_flash_ll.h:148
+ (inlined by) spi_flash_hal_read at /home/widefly/esp/esp-idf-v4.4.4/components/hal/spi_flash_hal_common.inc:176
+0x4008fd21: spi_flash_chip_winbond_read at /home/widefly/esp/esp-idf-v4.4.4/components/spi_flash/spi_flash_chip_winbond.c:69
+0x400857bf: esp_flash_read at /home/widefly/esp/esp-idf-v4.4.4/components/spi_flash/esp_flash_api.c:832 (discriminator 4)
+0x400db826: esp_partition_read at /home/widefly/esp/esp-idf-v4.4.4/components/spi_flash/partition.c:424
+0x00000400: ?? ??:0
+0x000e31a2: ?? ??:0
+0x400e4391: WL_Flash::read(unsigned int, void*, unsigned int) at /home/widefly/esp/esp-idf-v4.4.4/components/wear_levelling/WL_Flash.cpp:611
+0x400e30ba: wl_read at /home/widefly/esp/esp-idf-v4.4.4/components/wear_levelling/wear_levelling.cpp:223
+0x400ddf1d: ff_wl_read at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/diskio/diskio_wl.c:46
+0x400dde45: ff_disk_read at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/diskio/diskio.c:70
+0x400de309: move_window at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/src/ff.c:1077
+0x400ded30: dir_find at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/src/ff.c:2450
+0x400dedc9: follow_path at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/src/ff.c:3070
+0x400df103: f_open at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/src/ff.c:3571
+0x400e0c4b: vfs_fat_open at /home/widefly/esp/esp-idf-v4.4.4/components/fatfs/vfs/vfs_fat.c:313
+0x400d3559: esp_vfs_open at /home/widefly/esp/esp-idf-v4.4.4/components/vfs/vfs.c:399 (discriminator 3)
+0x400f44ab: _fopen_r at /builds/idf/crosstool-NG/.build/xtensa-esp32-elf/src/newlib/newlib/libc/stdio/fopen.c:129
+0x400f4550: fopen at /builds/idf/crosstool-NG/.build/xtensa-esp32-elf/src/newlib/newlib/libc/stdio/fopen.c:168
+0x400d700f: isFATFSCorrupted at /home/widefly/projects/m1esp/crashProjects/esp-adf-play_mp3_control/main/play_mp3_control_example.c:174
+0x400d718b: worker at /home/widefly/projects/m1esp/crashProjects/esp-adf-play_mp3_control/main/play_mp3_control_example.c:287 (discriminator 15)
+0x4008c12d: vPortTaskWrapper at /home/widefly/esp/esp-idf-v4.4.4/components/freertos/port/xtensa/port.c:142
+0x00fbf050: ?? ??:0
+
