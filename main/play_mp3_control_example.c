@@ -9,12 +9,6 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-/**
- * [ build that will not crash ]
- *
- *
- */
-
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
